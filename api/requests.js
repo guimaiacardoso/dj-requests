@@ -7,7 +7,6 @@ async function redisGet(key) {
   });
   const data = await res.json();
   if (!data.result) return [];
-  // Descodificar tantas vezes quantas necessário até ser um array
   let result = data.result;
   while (typeof result === 'string') {
     try { result = JSON.parse(result); } catch { break; }
@@ -16,15 +15,18 @@ async function redisGet(key) {
 }
 
 async function redisSet(key, value) {
-  // Guardar como string simples — sem dupla serialização
-  await fetch(`${KV_REST_API_URL}/set/${key}`, {
+  // Formato correcto Upstash REST: POST /pipeline com comando SET
+  const res = await fetch(`${KV_REST_API_URL}/pipeline`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${KV_REST_API_TOKEN}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify([JSON.stringify(value)]),
+    body: JSON.stringify([
+      ['SET', key, JSON.stringify(value)]
+    ]),
   });
+  return res.json();
 }
 
 export default async function handler(req, res) {
