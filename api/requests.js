@@ -7,11 +7,16 @@ async function redisGet(key) {
   });
   const data = await res.json();
   if (!data.result) return [];
-  return JSON.parse(data.result);
+  // Pode estar como string ou já como array — normalizar
+  let result = data.result;
+  if (typeof result === 'string') result = JSON.parse(result);
+  if (typeof result === 'string') result = JSON.parse(result); // double-encoded
+  if (!Array.isArray(result)) return [];
+  return result;
 }
 
 async function redisSet(key, value) {
-  const res = await fetch(`${KV_REST_API_URL}/set/${key}`, {
+  await fetch(`${KV_REST_API_URL}/set/${key}`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${KV_REST_API_TOKEN}`,
@@ -19,7 +24,6 @@ async function redisSet(key, value) {
     },
     body: JSON.stringify([JSON.stringify(value)]),
   });
-  return res.json();
 }
 
 export default async function handler(req, res) {
