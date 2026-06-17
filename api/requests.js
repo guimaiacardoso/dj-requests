@@ -1,16 +1,29 @@
-// Simple in-memory store (resets on cold start — para produção usar Vercel KV ou similar)
-// Usamos um ficheiro JSON em /tmp para persistir entre chamadas quentes
-import fs from 'fs';
+const KV_REST_API_URL = process.env.KV_REST_API_URL;
+const KV_REST_API_TOKEN = process.env.KV_REST_API_TOKEN;
 
-const FILE = '/tmp/requests.json';
-
-function load() {
-  try { return JSON.parse(fs.readFileSync(FILE, 'utf8')); }
-  catch { return []; }
+async function redis(command, ...args) {
+  const res = await fetch(`${KV_REST_API_URL}/${command}/${args.map(a => encodeURIComponent(JSON.stringify(a))).join('/')}`, {
+    headers: { Authorization: `Bearer ${KV_REST_API_TOKEN}` },
+  });
+  const data = await res.json();
+  return data.result;
 }
 
-function save(data) {
-  fs.writeFileSync(FILE, JSON.stringify(data));
+async function loadRequests() {
+  const raw = await redis('get', 'requests');
+  if (!raw) return [];
+  return typeof raw === 'string' ? JSON.parse(raw) : raw;
+}
+
+async function saveRequests(reqs) {
+  await fetch(`${KV_REST_API_URL}/set/requests`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${KV_REST_API_TOKEN}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ value: JSON.stringify(reqs) }),
+  });
 }
 
 export default async function handler(req, res) {
@@ -20,30 +33,38 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
 
   if (req.method === 'GET') {
-    return res.status(200).json(load());
+    const requests = await loadRequests();
+    return res.status(200).json(requests);
   }
 
   if (req.method === 'POST') {
-    const requests = load();
-    const newReq = { ...req.body, id: Date.now(), played: false,
-      time: new Date().toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' }) };
+    const requests = await loadRequests();
+    const newReq = {
+      ...req.body,
+      id: Date.now(),
+      played: false,
+      time: new Date().toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' }),
+    };
     requests.push(newReq);
-    save(requests);
+    await saveRequests(requests);
     return res.status(201).json(newReq);
   }
 
   if (req.method === 'PATCH') {
     const { id } = req.query;
-    const requests = load().map(r => r.id == id ? { ...r, ...req.body } : r);
-    save(requests);
+    const requests = (await loadRequests()).map(r => r.id == id ? { ...r, ...req.body } : r);
+    await saveRequests(requests);
     return res.status(200).json({ ok: true });
   }
 
   if (req.method === 'DELETE') {
     const { id } = req.query;
-    if (id === 'all') { save([]); return res.status(200).json({ ok: true }); }
-    const requests = load().filter(r => r.id != id);
-    save(requests);
+    if (id === 'all') {
+      await saveRequests([]);
+      return res.status(200).json({ ok: true });
+    }
+    const requests = (await loadRequests()).filter(r => r.id != id);
+    await saveRequests(requests);
     return res.status(200).json({ ok: true });
   }
 
