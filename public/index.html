@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pede uma Música 🎵</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: linear-gradient(135deg, #0f0f1a 0%, #1a0a2e 100%);
+      min-height: 100vh; font-family: 'Inter', system-ui, sans-serif;
+      color: #fff;
+    }
+    .page { max-width: 480px; margin: 0 auto; padding: 20px; }
+
+    /* ── DJ panel ── */
+    .page.dj { max-width: 600px; background: #0f0f1a; min-height: 100vh; }
+
+    h1 { font-size: 24px; font-weight: 800; }
+    .subtitle { color: #a78bfa; font-size: 14px; margin-top: 6px; }
+
+    .header { text-align: center; padding: 32px 0 24px; }
+    .emoji-big { font-size: 40px; margin-bottom: 8px; }
+
+    input {
+      width: 100%; background: #1a1a2e; border: 1px solid #2a2a4a;
+      border-radius: 12px; padding: 12px 16px; color: #fff; font-size: 14px;
+      outline: none; transition: border-color .2s;
+    }
+    input:focus { border-color: #7c3aed; }
+    input::placeholder { color: #4a4a6a; }
+    .mb12 { margin-bottom: 12px; }
+    .mb16 { margin-bottom: 16px; }
+
+    .search-wrap { position: relative; margin-bottom: 16px; }
+    .search-wrap input { padding-right: 44px; }
+    .search-icon {
+      position: absolute; right: 14px; top: 50%; transform: translateY(-50%);
+      color: #4a4a6a; font-size: 16px; pointer-events: none;
+    }
+
+    .track {
+      display: flex; align-items: center; gap: 12px;
+      background: #1a1a2e; border-radius: 12px; padding: 10px 14px;
+      margin-bottom: 8px; border: 1px solid #2a2a4a; transition: border-color .2s;
+    }
+    .track:hover { border-color: #7c3aed; }
+    .track img, .track .thumb-placeholder {
+      width: 48px; height: 48px; border-radius: 8px; flex-shrink: 0; object-fit: cover;
+    }
+    .thumb-placeholder {
+      background: #2a2a4a; display: flex; align-items: center;
+      justify-content: center; font-size: 20px;
+    }
+    .track-info { flex: 1; min-width: 0; }
+    .track-name { font-weight: 600; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .track-artist { color: #a78bfa; font-size: 12px; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .track-album { color: #4a4a6a; font-size: 11px; margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    .btn-request {
+      background: #7c3aed; border: none; border-radius: 8px;
+      color: #fff; padding: 8px 14px; cursor: pointer; font-size: 12px;
+      font-weight: 600; flex-shrink: 0; transition: background .2s;
+    }
+    .btn-request:hover { background: #6d28d9; }
+
+    .empty { text-align: center; color: #4a4a6a; margin-top: 48px; }
+    .empty .e { font-size: 32px; margin-bottom: 8px; }
+    .empty p { font-size: 14px; }
+
+    .error { color: #f87171; font-size: 13px; margin-bottom: 12px; }
+    .loading-msg { text-align: center; color: #a78bfa; font-size: 13px; margin-bottom: 12px; }
+
+    .success {
+      background: #1a2e1a; border: 1px solid #22c55e;
+      border-radius: 16px; padding: 24px; text-align: center;
+    }
+    .success .s-title { color: #22c55e; font-weight: 700; font-size: 18px; }
+    .success .s-sub { color: #86efac; margin-top: 8px; font-size: 14px; }
+
+    /* DJ panel */
+    .dj-header {
+      display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px;
+    }
+    .dj-title { font-size: 20px; font-weight: 800; }
+    .dj-sub { color: #a78bfa; font-size: 13px; margin-top: 2px; }
+    .btn-sm {
+      border-radius: 8px; padding: 6px 12px; cursor: pointer; font-size: 13px; border: none;
+    }
+    .btn-refresh { background: #1a1a2e; border: 1px solid #2a2a4a !important; color: #a78bfa; }
+    .btn-clear { background: #2a1a1a; border: 1px solid #4a2a2a !important; color: #f87171; }
+    .btn-sm { border: 1px solid transparent; }
+    .filters { display: flex; gap: 8px; margin-bottom: 16px; }
+    .filter-btn {
+      background: #1a1a2e; border: 1px solid #2a2a4a; border-radius: 8px;
+      color: #fff; padding: 6px 14px; cursor: pointer; font-size: 13px;
+    }
+    .filter-btn.active { background: #7c3aed; border-color: #7c3aed; font-weight: 700; }
+
+    .req-card {
+      background: #1a1a2e; border: 1px solid #2a2a4a;
+      border-radius: 12px; padding: 14px; margin-bottom: 10px;
+      display: flex; align-items: center; gap: 12px;
+    }
+    .req-card.played { background: #0f1a0f; border-color: #1a3a1a; opacity: .6; }
+    .req-meta { color: #4a4a6a; font-size: 11px; margin-top: 2px; }
+    .req-actions { display: flex; flex-direction: column; gap: 6px; flex-shrink: 0; }
+    .btn-played {
+      background: #22c55e; border: none; border-radius: 8px;
+      color: #fff; padding: 5px 10px; cursor: pointer; font-size: 11px; font-weight: 700;
+    }
+    .btn-remove {
+      background: transparent; border: 1px solid #4a2a2a; border-radius: 8px;
+      color: #f87171; padding: 5px 10px; cursor: pointer; font-size: 11px;
+    }
+
+    /* Login */
+    .login-wrap {
+      min-height: 100vh; display: flex; align-items: center; justify-content: center;
+    }
+    .login-box { text-align: center; width: 280px; }
+    .login-box h2 { font-size: 22px; font-weight: 800; margin-bottom: 20px; }
+    .btn-login {
+      background: #7c3aed; border: none; border-radius: 12px; color: #fff;
+      padding: 12px 24px; cursor: pointer; font-size: 14px; font-weight: 700; width: 100%;
+      margin-top: 4px;
+    }
+
+    .hidden-switch {
+      text-align: center; margin-top: 40px;
+      background: transparent; border: none; color: #2a2a4a; cursor: pointer; font-size: 11px;
+    }
+    .back-link {
+      display: block; text-align: center; margin-top: 20px;
+      background: transparent; border: none; color: #4a4a6a; cursor: pointer; font-size: 12px;
+    }
+    .gap8 { display: flex; gap: 8px; }
+  </style>
+</head>
+<body>
+
+<!-- GUEST VIEW -->
+<div id="view-guest" class="page" style="display:block">
+  <div class="header">
+    <div class="emoji-big">🎵</div>
+    <h1>Pede uma Música</h1>
+    <p class="subtitle">Pesquisa e envia o teu pedido ao DJ</p>
+  </div>
+  <div id="guest-form">
+    <input id="inp-name" class="mb12" placeholder="O teu nome (opcional)" />
+    <div class="search-wrap">
+      <input id="inp-search" placeholder="Nome da música ou artista…" autocomplete="off" />
+      <div class="search-icon" id="search-icon">🔍</div>
+    </div>
+    <div id="search-error" class="error" style="display:none"></div>
+    <div id="search-loading" class="loading-msg" style="display:none">A pesquisar…</div>
+    <div id="results"></div>
+    <div class="empty" id="empty-state">
+      <div class="e">🎧</div>
+      <p>Começa a escrever para pesquisar</p>
+    </div>
+  </div>
+  <div id="guest-success" style="display:none" class="success">
+    <div class="emoji-big">✅</div>
+    <div class="s-title">Pedido enviado!</div>
+    <div class="s-sub" id="success-msg"></div>
+  </div>
+  <button class="hidden-switch" onclick="showLogin()">···</button>
+</div>
+
+<!-- DJ LOGIN -->
+<div id="view-login" style="display:none">
+  <div class="login-wrap">
+    <div class="login-box">
+      <div class="emoji-big">🎛</div>
+      <h2>Painel DJ</h2>
+      <input type="password" id="inp-pw" placeholder="Palavra-passe" style="text-align:center;margin-bottom:8px"
+        onkeydown="if(event.key==='Enter') checkPw()" />
+      <div id="pw-error" class="error" style="display:none;text-align:center">Código errado</div>
+      <button class="btn-login" onclick="checkPw()">Entrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- DJ VIEW -->
+<div id="view-dj" class="page dj" style="display:none">
+  <div class="dj-header">
+    <div>
+      <div class="dj-title">🎛 Painel DJ</div>
+      <div class="dj-sub" id="dj-sub">Atualiza a cada 3 seg</div>
+    </div>
+    <div class="gap8">
+      <button class="btn-sm btn-refresh" onclick="loadDJ()">↻</button>
+      <button class="btn-sm btn-clear" onclick="clearAll()">Limpar</button>
+    </div>
+  </div>
+  <div class="filters">
+    <button class="filter-btn active" data-f="all" onclick="setFilter(this,'all')">Todos</button>
+    <button class="filter-btn" data-f="pending" onclick="setFilter(this,'pending')">Por tocar</button>
+    <button class="filter-btn" data-f="played" onclick="setFilter(this,'played')">Tocados</button>
+  </div>
+  <div id="dj-list"></div>
+  <button class="back-link" onclick="showView('guest')">← Vista pública</button>
+</div>
+
+<script>
+  const DJ_PASSWORD = 'dj2025';
+  let djFilter = 'all';
+  let djInterval = null;
+  let allRequests = [];
+  let searchTimer = null;
+
+  // ── Navigation ──────────────────────────────────────────────────────────────
+  function showView(v) {
+    ['guest','login','dj'].forEach(n => {
+      document.getElementById('view-'+n).style.display = 'none';
+    });
+    document.getElementById('view-'+v).style.display = 'block';
+    if (v === 'dj') {
+      loadDJ();
+      djInterval = setInterval(loadDJ, 3000);
+    } else {
+      clearInterval(djInterval);
+    }
+  }
+
+  function showLogin() { showView('login'); }
+
+  function checkPw() {
+    const pw = document.getElementById('inp-pw').value;
+    if (pw === DJ_PASSWORD) {
+      document.getElementById('pw-error').style.display = 'none';
+      showView('dj');
+    } else {
+      document.getElementById('pw-error').style.display = 'block';
+    }
+  }
+
+  // ── Guest search ────────────────────────────────────────────────────────────
+  document.getElementById('inp-search').addEventListener('input', function() {
+    clearTimeout(searchTimer);
+    const q = this.value.trim();
+    if (q.length < 2) {
+      document.getElementById('results').innerHTML = '';
+      document.getElementById('empty-state').style.display = 'block';
+      document.getElementById('search-error').style.display = 'none';
+      document.getElementById('search-loading').style.display = 'none';
+      document.getElementById('search-icon').textContent = '🔍';
+      return;
+    }
+    document.getElementById('empty-state').style.display = 'none';
+    document.getElementById('search-loading').style.display = 'block';
+    document.getElementById('search-icon').textContent = '⟳';
+    searchTimer = setTimeout(() => doSearch(q), 500);
+  });
+
+  async function doSearch(q) {
+    try {
+      const res = await fetch('/api/spotify?q=' + encodeURIComponent(q));
+      const tracks = await res.json();
+      document.getElementById('search-loading').style.display = 'none';
+      document.getElementById('search-icon').textContent = '🔍';
+      document.getElementById('search-error').style.display = 'none';
+      renderResults(tracks);
+    } catch(e) {
+      document.getElementById('search-loading').style.display = 'none';
+      document.getElementById('search-icon').textContent = '🔍';
+      const el = document.getElementById('search-error');
+      el.textContent = 'Erro na pesquisa. Tenta novamente.';
+      el.style.display = 'block';
+    }
+  }
+
+  function renderResults(tracks) {
+    const el = document.getElementById('results');
+    if (!tracks.length) {
+      el.innerHTML = '';
+      const err = document.getElementById('search-error');
+      err.textContent = 'Nenhum resultado encontrado.';
+      err.style.display = 'block';
+      return;
+    }
+    el.innerHTML = tracks.map(t => `
+      <div class="track" onclick="requestTrack(${JSON.stringify(t).replace(/"/g,'&quot;')})">
+        ${t.image
+          ? `<img src="${t.image}" alt="${t.album}">`
+          : `<div class="thumb-placeholder">🎵</div>`}
+        <div class="track-info">
+          <div class="track-name">${esc(t.name)}</div>
+          <div class="track-artist">${esc(t.artist)}</div>
+          <div class="track-album">${esc(t.album)}</div>
+        </div>
+        <button class="btn-request">Pedir</button>
+      </div>
+    `).join('');
+  }
+
+  async function requestTrack(track) {
+    const name = document.getElementById('inp-name').value.trim() || 'Anónimo';
+    await fetch('/api/requests', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ track, requester: name }),
+    });
+    document.getElementById('guest-form').style.display = 'none';
+    document.getElementById('guest-success').style.display = 'block';
+    document.getElementById('success-msg').textContent = `"${track.name}" — ${track.artist}`;
+    setTimeout(() => {
+      document.getElementById('guest-form').style.display = 'block';
+      document.getElementById('guest-success').style.display = 'none';
+      document.getElementById('inp-search').value = '';
+      document.getElementById('results').innerHTML = '';
+      document.getElementById('empty-state').style.display = 'block';
+    }, 3000);
+  }
+
+  // ── DJ panel ─────────────────────────────────────────────────────────────────
+  async function loadDJ() {
+    const res = await fetch('/api/requests');
+    allRequests = await res.json();
+    allRequests.reverse();
+    const pending = allRequests.filter(r => !r.played).length;
+    document.getElementById('dj-sub').textContent = `Atualiza a cada 3 seg · ${pending} por tocar`;
+    renderDJ();
+  }
+
+  function setFilter(btn, f) {
+    djFilter = f;
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    renderDJ();
+  }
+
+  function renderDJ() {
+    const filtered = allRequests.filter(r =>
+      djFilter === 'all' ? true : djFilter === 'pending' ? !r.played : r.played
+    );
+    const el = document.getElementById('dj-list');
+    if (!filtered.length) {
+      el.innerHTML = `<div class="empty"><div class="e">🎵</div><p>Nenhum pedido ainda</p></div>`;
+      return;
+    }
+    el.innerHTML = filtered.map(r => `
+      <div class="req-card ${r.played ? 'played' : ''}">
+        ${r.track.image
+          ? `<img src="${r.track.image}" style="width:48px;height:48px;border-radius:8px;object-fit:cover;flex-shrink:0">`
+          : `<div style="width:48px;height:48px;border-radius:8px;background:#2a2a4a;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0">🎵</div>`}
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:700;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(r.track.name)}</div>
+          <div style="color:#a78bfa;font-size:12px">${esc(r.track.artist)}</div>
+          <div class="req-meta">${esc(r.requester)} · ${r.time}</div>
+        </div>
+        <div class="req-actions">
+          ${!r.played ? `<button class="btn-played" onclick="markPlayed(${r.id})">✓ Tocou</button>` : ''}
+          <button class="btn-remove" onclick="removeReq(${r.id})">✕</button>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  async function markPlayed(id) {
+    await fetch('/api/requests?id=' + id, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ played: true }),
+    });
+    loadDJ();
+  }
+
+  async function removeReq(id) {
+    await fetch('/api/requests?id=' + id, { method: 'DELETE' });
+    loadDJ();
+  }
+
+  async function clearAll() {
+    if (!confirm('Limpar todos os pedidos?')) return;
+    await fetch('/api/requests?id=all', { method: 'DELETE' });
+    loadDJ();
+  }
+
+  function esc(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+</script>
+</body>
+</html>
