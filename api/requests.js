@@ -1,29 +1,25 @@
 const KV_REST_API_URL = process.env.KV_REST_API_URL;
 const KV_REST_API_TOKEN = process.env.KV_REST_API_TOKEN;
 
-async function redis(command, ...args) {
-  const res = await fetch(`${KV_REST_API_URL}/${command}/${args.map(a => encodeURIComponent(JSON.stringify(a))).join('/')}`, {
+async function redisGet(key) {
+  const res = await fetch(`${KV_REST_API_URL}/get/${key}`, {
     headers: { Authorization: `Bearer ${KV_REST_API_TOKEN}` },
   });
   const data = await res.json();
-  return data.result;
+  if (!data.result) return [];
+  return JSON.parse(data.result);
 }
 
-async function loadRequests() {
-  const raw = await redis('get', 'requests');
-  if (!raw) return [];
-  return typeof raw === 'string' ? JSON.parse(raw) : raw;
-}
-
-async function saveRequests(reqs) {
-  await fetch(`${KV_REST_API_URL}/set/requests`, {
+async function redisSet(key, value) {
+  const res = await fetch(`${KV_REST_API_URL}/set/${key}`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${KV_REST_API_TOKEN}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ value: JSON.stringify(reqs) }),
+    body: JSON.stringify([JSON.stringify(value)]),
   });
+  return res.json();
 }
 
 export default async function handler(req, res) {
@@ -33,39 +29,57 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
 
   if (req.method === 'GET') {
-    const requests = await loadRequests();
-    return res.status(200).json(requests);
+    try {
+      const requests = await redisGet('dj_requests');
+      return res.status(200).json(requests);
+    } catch(e) {
+      return res.status(500).json({ error: e.message });
+    }
   }
 
   if (req.method === 'POST') {
-    const requests = await loadRequests();
-    const newReq = {
-      ...req.body,
-      id: Date.now(),
-      played: false,
-      time: new Date().toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' }),
-    };
-    requests.push(newReq);
-    await saveRequests(requests);
-    return res.status(201).json(newReq);
+    try {
+      const requests = await redisGet('dj_requests');
+      const newReq = {
+        ...req.body,
+        id: Date.now(),
+        played: false,
+        time: new Date().toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' }),
+      };
+      requests.push(newReq);
+      await redisSet('dj_requests', requests);
+      return res.status(201).json(newReq);
+    } catch(e) {
+      return res.status(500).json({ error: e.message });
+    }
   }
 
   if (req.method === 'PATCH') {
-    const { id } = req.query;
-    const requests = (await loadRequests()).map(r => r.id == id ? { ...r, ...req.body } : r);
-    await saveRequests(requests);
-    return res.status(200).json({ ok: true });
+    try {
+      const { id } = req.query;
+      const requests = (await redisGet('dj_requests')).map(r =>
+        r.id == id ? { ...r, ...req.body } : r
+      );
+      await redisSet('dj_requests', requests);
+      return res.status(200).json({ ok: true });
+    } catch(e) {
+      return res.status(500).json({ error: e.message });
+    }
   }
 
   if (req.method === 'DELETE') {
-    const { id } = req.query;
-    if (id === 'all') {
-      await saveRequests([]);
+    try {
+      const { id } = req.query;
+      if (id === 'all') {
+        await redisSet('dj_requests', []);
+        return res.status(200).json({ ok: true });
+      }
+      const requests = (await redisGet('dj_requests')).filter(r => r.id != id);
+      await redisSet('dj_requests', requests);
       return res.status(200).json({ ok: true });
+    } catch(e) {
+      return res.status(500).json({ error: e.message });
     }
-    const requests = (await loadRequests()).filter(r => r.id != id);
-    await saveRequests(requests);
-    return res.status(200).json({ ok: true });
   }
 
   res.status(405).end();
