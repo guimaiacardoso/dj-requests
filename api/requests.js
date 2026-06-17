@@ -1,32 +1,24 @@
 const KV_REST_API_URL = process.env.KV_REST_API_URL;
 const KV_REST_API_TOKEN = process.env.KV_REST_API_TOKEN;
 
+const headers = {
+  Authorization: `Bearer ${KV_REST_API_TOKEN}`,
+  'Content-Type': 'application/json',
+};
+
 async function redisGet(key) {
-  const res = await fetch(`${KV_REST_API_URL}/get/${key}`, {
-    headers: { Authorization: `Bearer ${KV_REST_API_TOKEN}` },
-  });
+  const res = await fetch(`${KV_REST_API_URL}/get/${key}`, { headers });
   const data = await res.json();
   if (!data.result) return [];
-  let result = data.result;
-  while (typeof result === 'string') {
-    try { result = JSON.parse(result); } catch { break; }
-  }
-  return Array.isArray(result) ? result : [];
+  try { return JSON.parse(data.result); } catch { return []; }
 }
 
 async function redisSet(key, value) {
-  // Formato correcto Upstash REST: POST /pipeline com comando SET
-  const res = await fetch(`${KV_REST_API_URL}/pipeline`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${KV_REST_API_TOKEN}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify([
-      ['SET', key, JSON.stringify(value)]
-    ]),
+  const encoded = encodeURIComponent(JSON.stringify(value));
+  await fetch(`${KV_REST_API_URL}/set/${key}/${encoded}`, {
+    method: 'GET',
+    headers,
   });
-  return res.json();
 }
 
 export default async function handler(req, res) {
@@ -37,8 +29,7 @@ export default async function handler(req, res) {
 
   if (req.method === 'GET') {
     try {
-      const requests = await redisGet('dj_requests');
-      return res.status(200).json(requests);
+      return res.status(200).json(await redisGet('dj_requests'));
     } catch(e) { return res.status(500).json({ error: e.message }); }
   }
 
@@ -69,7 +60,8 @@ export default async function handler(req, res) {
   if (req.method === 'DELETE') {
     try {
       const { id } = req.query;
-      const requests = id === 'all' ? [] : (await redisGet('dj_requests')).filter(r => r.id != id);
+      const all = await redisGet('dj_requests');
+      const requests = id === 'all' ? [] : all.filter(r => r.id != id);
       await redisSet('dj_requests', requests);
       return res.status(200).json({ ok: true });
     } catch(e) { return res.status(500).json({ error: e.message }); }
