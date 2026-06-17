@@ -7,15 +7,16 @@ async function redisGet(key) {
   });
   const data = await res.json();
   if (!data.result) return [];
-  // Pode estar como string ou já como array — normalizar
+  // Descodificar tantas vezes quantas necessário até ser um array
   let result = data.result;
-  if (typeof result === 'string') result = JSON.parse(result);
-  if (typeof result === 'string') result = JSON.parse(result); // double-encoded
-  if (!Array.isArray(result)) return [];
-  return result;
+  while (typeof result === 'string') {
+    try { result = JSON.parse(result); } catch { break; }
+  }
+  return Array.isArray(result) ? result : [];
 }
 
 async function redisSet(key, value) {
+  // Guardar como string simples — sem dupla serialização
   await fetch(`${KV_REST_API_URL}/set/${key}`, {
     method: 'POST',
     headers: {
@@ -36,26 +37,20 @@ export default async function handler(req, res) {
     try {
       const requests = await redisGet('dj_requests');
       return res.status(200).json(requests);
-    } catch(e) {
-      return res.status(500).json({ error: e.message });
-    }
+    } catch(e) { return res.status(500).json({ error: e.message }); }
   }
 
   if (req.method === 'POST') {
     try {
       const requests = await redisGet('dj_requests');
       const newReq = {
-        ...req.body,
-        id: Date.now(),
-        played: false,
+        ...req.body, id: Date.now(), played: false,
         time: new Date().toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' }),
       };
       requests.push(newReq);
       await redisSet('dj_requests', requests);
       return res.status(201).json(newReq);
-    } catch(e) {
-      return res.status(500).json({ error: e.message });
-    }
+    } catch(e) { return res.status(500).json({ error: e.message }); }
   }
 
   if (req.method === 'PATCH') {
@@ -66,24 +61,16 @@ export default async function handler(req, res) {
       );
       await redisSet('dj_requests', requests);
       return res.status(200).json({ ok: true });
-    } catch(e) {
-      return res.status(500).json({ error: e.message });
-    }
+    } catch(e) { return res.status(500).json({ error: e.message }); }
   }
 
   if (req.method === 'DELETE') {
     try {
       const { id } = req.query;
-      if (id === 'all') {
-        await redisSet('dj_requests', []);
-        return res.status(200).json({ ok: true });
-      }
-      const requests = (await redisGet('dj_requests')).filter(r => r.id != id);
+      const requests = id === 'all' ? [] : (await redisGet('dj_requests')).filter(r => r.id != id);
       await redisSet('dj_requests', requests);
       return res.status(200).json({ ok: true });
-    } catch(e) {
-      return res.status(500).json({ error: e.message });
-    }
+    } catch(e) { return res.status(500).json({ error: e.message }); }
   }
 
   res.status(405).end();
