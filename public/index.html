@@ -8,10 +8,9 @@
   <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    :root { --black: #000000; --white: #ffffff; --off-white: #e8e8e8; --grey: #1a1a1a; --grey-mid: #2a2a2a; --grey-border: #333333; --grey-muted: #666666; --gold: #c8a84b; }
+    :root { --black: #000000; --white: #ffffff; --grey: #1a1a1a; --grey-mid: #2a2a2a; --grey-border: #333333; --grey-muted: #666666; --gold: #c8a84b; --spotify: #1db954; }
     body { background: var(--black); color: var(--white); font-family: 'Inter', sans-serif; min-height: 100vh; }
     @keyframes shimmer { 0% { opacity: 0; transform: translateY(12px); } 100% { opacity: 1; transform: translateY(0); } }
-    @keyframes spin-slow { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
     @keyframes pop-in { 0% { transform: scale(0.8); opacity: 0; } 60% { transform: scale(1.1); } 100% { transform: scale(1); opacity: 1; } }
     .page { max-width: 460px; margin: 0 auto; padding: 0 20px 48px; }
     .site-header { text-align: center; padding: 36px 20px 28px; animation: shimmer .5s ease both; }
@@ -67,6 +66,8 @@
     .req-thumb img { width: 46px; height: 46px; border-radius: 6px; object-fit: cover; }
     .req-info { flex: 1; min-width: 0; }
     .req-name { font-weight: 700; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .req-name a { color: inherit; text-decoration: none; border-bottom: 1px solid #444; transition: border-color .15s; }
+    .req-name a:hover { border-color: var(--spotify); color: var(--spotify); }
     .req-artist { font-size: 12px; color: var(--grey-muted); margin-top: 1px; }
     .req-meta { font-size: 11px; color: #444; margin-top: 3px; }
     .req-actions { display: flex; flex-direction: column; gap: 5px; flex-shrink: 0; }
@@ -80,6 +81,8 @@
     .btn-login { width: 100%; background: var(--white); border: none; border-radius: 8px; color: var(--black); padding: 13px; font-size: 14px; font-weight: 700; cursor: pointer; margin-top: 8px; font-family: 'Inter', sans-serif; }
     .btn-login:hover { background: var(--gold); }
     .new-badge { display: inline-block; background: var(--gold); color: var(--black); font-size: 9px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; border-radius: 4px; padding: 2px 6px; margin-left: 6px; vertical-align: middle; animation: pop-in .3s ease both; }
+    .spotify-link { display: inline-flex; align-items: center; gap: 4px; font-size: 10px; color: var(--spotify); text-decoration: none; margin-top: 3px; opacity: .8; }
+    .spotify-link:hover { opacity: 1; }
   </style>
 </head>
 <body>
@@ -164,8 +167,17 @@
   document.getElementById('inp-search').addEventListener('input', function() {
     clearTimeout(searchTimer);
     const q = this.value.trim();
-    if (q.length < 2) { document.getElementById('results').innerHTML=''; document.getElementById('empty-state').style.display='block'; document.getElementById('search-error').style.display='none'; document.getElementById('search-loading').style.display='none'; document.getElementById('search-icon').textContent='🔍'; return; }
-    document.getElementById('empty-state').style.display='none'; document.getElementById('search-loading').style.display='block'; document.getElementById('search-icon').textContent='⟳';
+    if (q.length < 2) {
+      document.getElementById('results').innerHTML='';
+      document.getElementById('empty-state').style.display='block';
+      document.getElementById('search-error').style.display='none';
+      document.getElementById('search-loading').style.display='none';
+      document.getElementById('search-icon').textContent='🔍';
+      return;
+    }
+    document.getElementById('empty-state').style.display='none';
+    document.getElementById('search-loading').style.display='block';
+    document.getElementById('search-icon').textContent='⟳';
     searchTimer = setTimeout(() => doSearch(q), 500);
   });
 
@@ -173,24 +185,48 @@
     try {
       const res = await fetch('/api/spotify?q=' + encodeURIComponent(q));
       const tracks = await res.json();
-      document.getElementById('search-loading').style.display='none'; document.getElementById('search-icon').textContent='🔍'; document.getElementById('search-error').style.display='none';
+      document.getElementById('search-loading').style.display='none';
+      document.getElementById('search-icon').textContent='🔍';
+      document.getElementById('search-error').style.display='none';
       renderResults(tracks);
-    } catch { document.getElementById('search-loading').style.display='none'; document.getElementById('search-icon').textContent='🔍'; const el=document.getElementById('search-error'); el.textContent='Erro na pesquisa. Tenta novamente.'; el.style.display='block'; }
+    } catch {
+      document.getElementById('search-loading').style.display='none';
+      document.getElementById('search-icon').textContent='🔍';
+      const el = document.getElementById('search-error');
+      el.textContent='Erro na pesquisa. Tenta novamente.';
+      el.style.display='block';
+    }
   }
 
   function renderResults(tracks) {
     const el = document.getElementById('results');
     if (!tracks.length) { el.innerHTML=''; const err=document.getElementById('search-error'); err.textContent='Nenhum resultado encontrado.'; err.style.display='block'; return; }
-    el.innerHTML = tracks.map(t => `<div class="track" onclick="requestTrack(${JSON.stringify(t).replace(/"/g,'&quot;')})"><div class="track-thumb">${t.image?`<img src="${t.image}" alt="">`:'🎵'}</div><div class="track-info"><div class="track-name">${esc(t.name)}</div><div class="track-artist">${esc(t.artist)}</div><div class="track-album">${esc(t.album)}</div></div><button class="btn-request">Pedir</button></div>`).join('');
+    el.innerHTML = tracks.map(t => `
+      <div class="track" onclick="requestTrack(${JSON.stringify(t).replace(/"/g,'&quot;')})">
+        <div class="track-thumb">${t.image?`<img src="${t.image}" alt="">`:'🎵'}</div>
+        <div class="track-info">
+          <div class="track-name">${esc(t.name)}</div>
+          <div class="track-artist">${esc(t.artist)}</div>
+          <div class="track-album">${esc(t.album)}</div>
+        </div>
+        <button class="btn-request">Pedir</button>
+      </div>`).join('');
   }
 
   async function requestTrack(track) {
     const name = document.getElementById('inp-name').value.trim() || 'Anónimo';
     const team = document.getElementById('inp-team').value.trim();
     await fetch('/api/requests', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({track, requester:name, team}) });
-    document.getElementById('guest-form').style.display='none'; document.getElementById('guest-success').style.display='block';
+    document.getElementById('guest-form').style.display='none';
+    document.getElementById('guest-success').style.display='block';
     document.getElementById('success-msg').textContent = `"${track.name}" — ${track.artist}${team?' · '+team:''}`;
-    setTimeout(() => { document.getElementById('guest-form').style.display='block'; document.getElementById('guest-success').style.display='none'; document.getElementById('inp-search').value=''; document.getElementById('results').innerHTML=''; document.getElementById('empty-state').style.display='block'; }, 3000);
+    setTimeout(() => {
+      document.getElementById('guest-form').style.display='block';
+      document.getElementById('guest-success').style.display='none';
+      document.getElementById('inp-search').value='';
+      document.getElementById('results').innerHTML='';
+      document.getElementById('empty-state').style.display='block';
+    }, 3000);
   }
 
   async function loadDJ() {
@@ -203,13 +239,30 @@
     renderDJ();
   }
 
-  function setFilter(btn, f) { djFilter=f; document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active')); btn.classList.add('active'); renderDJ(); }
+  function setFilter(btn, f) {
+    djFilter=f;
+    document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    renderDJ();
+  }
 
   function renderDJ() {
     const filtered = allRequests.filter(r => djFilter==='all'?true:djFilter==='pending'?!r.played:r.played);
     const el = document.getElementById('dj-list');
     if (!filtered.length) { el.innerHTML=`<div class="empty-state"><div class="e">🎵</div><p>Nenhum pedido ainda</p></div>`; return; }
-    el.innerHTML = filtered.map(r => `<div class="req-card ${r.played?'played':''}"><div class="req-thumb">${r.track.image?`<img src="${r.track.image}" alt="">`:'🎵'}</div><div class="req-info"><div class="req-name">${esc(r.track.name)}</div><div class="req-artist">${esc(r.track.artist)}</div><div class="req-meta">${esc(r.requester)}${r.team?' · '+esc(r.team):''} · ${r.time}</div></div><div class="req-actions">${!r.played?`<button class="btn-played" onclick="markPlayed(${r.id})">✓ Tocou</button>`:''}<button class="btn-remove" onclick="removeReq(${r.id})">✕</button></div></div>`).join('');
+    el.innerHTML = filtered.map(r => `
+      <div class="req-card ${r.played?'played':''}">
+        <div class="req-thumb">${r.track.image?`<img src="${r.track.image}" alt="">`:'🎵'}</div>
+        <div class="req-info">
+          <div class="req-name">${r.track.spotifyUrl?`<a href="${r.track.spotifyUrl}" target="_blank">${esc(r.track.name)}</a>`:esc(r.track.name)}</div>
+          <div class="req-artist">${esc(r.track.artist)}</div>
+          <div class="req-meta">${esc(r.requester)}${r.team?' · '+esc(r.team):''} · ${r.time}</div>
+        </div>
+        <div class="req-actions">
+          ${!r.played?`<button class="btn-played" onclick="markPlayed(${r.id})">✓ Tocou</button>`:''}
+          <button class="btn-remove" onclick="removeReq(${r.id})">✕</button>
+        </div>
+      </div>`).join('');
   }
 
   async function markPlayed(id) { await fetch('/api/requests?id='+id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({played:true})}); loadDJ(); }
