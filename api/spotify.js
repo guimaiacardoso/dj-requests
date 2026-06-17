@@ -34,14 +34,15 @@ export default async function handler(req, res) {
       return res.status(500).json({ error: 'No tracks', detail: searchData });
     }
 
-    const tracks = searchData.tracks.items.map(t => ({
+   const tracks = searchData.tracks.items.map(t => ({
       id: t.id,
       name: t.name,
       artist: t.artists.map(a => a.name).join(', '),
       album: t.album.name,
       image: t.album.images[1]?.url || t.album.images[0]?.url || null,
+      spotifyUrl: t.external_urls.spotify,
     }));
-
+    
     res.status(200).json(tracks);
   } catch (e) {
     res.status(500).json({ error: e.message });
