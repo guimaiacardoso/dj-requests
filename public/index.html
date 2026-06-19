@@ -8,7 +8,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    :root { --black: #000000; --white: #ffffff; --grey: #1a1a1a; --grey-mid: #2a2a2a; --grey-border: #333333; --grey-muted: #666666; --gold: #c8a84b; --spotify: #1db954; }
+    :root { --black: #000000; --white: #ffffff; --grey: #1a1a1a; --grey-mid: #2a2a2a; --grey-border: #333333; --grey-muted: #666666; --gold: #c8a84b; }
     body { background: var(--black); color: var(--white); font-family: 'Inter', sans-serif; min-height: 100vh; }
     @keyframes shimmer { 0% { opacity: 0; transform: translateY(12px); } 100% { opacity: 1; transform: translateY(0); } }
     @keyframes pop-in { 0% { transform: scale(0.8); opacity: 0; } 60% { transform: scale(1.1); } 100% { transform: scale(1); opacity: 1; } }
@@ -56,16 +56,20 @@
     .dj-actions { display: flex; gap: 8px; }
     .btn-icon { background: var(--grey); border: 1px solid var(--grey-border); border-radius: 8px; color: var(--white); padding: 7px 12px; cursor: pointer; font-size: 13px; font-family: 'Inter', sans-serif; }
     .btn-danger { background: transparent; border: 1px solid #3a2020; border-radius: 8px; color: #e05252; padding: 7px 12px; cursor: pointer; font-size: 13px; font-family: 'Inter', sans-serif; }
-    .filters { display: flex; gap: 6px; padding: 0 20px 16px; }
+    .filters { display: flex; gap: 6px; padding: 0 20px 8px; flex-wrap: wrap; }
     .filter-btn { background: var(--grey); border: 1px solid var(--grey-border); border-radius: 6px; color: var(--grey-muted); padding: 6px 14px; cursor: pointer; font-size: 12px; font-weight: 600; font-family: 'Inter', sans-serif; transition: all .15s; }
     .filter-btn.active { background: var(--white); border-color: var(--white); color: var(--black); }
+    .sort-bar { display: flex; gap: 6px; padding: 0 20px 16px; }
+    .sort-btn { background: transparent; border: 1px solid var(--grey-border); border-radius: 6px; color: var(--grey-muted); padding: 4px 12px; cursor: pointer; font-size: 11px; font-family: 'Inter', sans-serif; transition: all .15s; }
+    .sort-btn.active { border-color: var(--gold); color: var(--gold); }
     .dj-list { padding: 0 20px; }
     .req-card { display: flex; align-items: center; gap: 12px; background: var(--grey); border: 1px solid var(--grey-border); border-radius: 10px; padding: 12px 14px; margin-bottom: 8px; }
     .req-card.played { opacity: .4; border-color: #222; }
     .req-thumb { width: 46px; height: 46px; border-radius: 6px; flex-shrink: 0; background: var(--grey-mid); display: flex; align-items: center; justify-content: center; font-size: 18px; }
     .req-thumb img { width: 46px; height: 46px; border-radius: 6px; object-fit: cover; }
     .req-info { flex: 1; min-width: 0; }
-    .req-name { font-weight: 700; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; gap: 8px; }
+    .req-name { font-weight: 700; font-size: 14px; display: flex; align-items: center; gap: 8px; }
+    .req-name span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .req-artist { font-size: 12px; color: var(--grey-muted); margin-top: 1px; }
     .req-meta { font-size: 11px; color: #444; margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .req-actions { display: flex; flex-direction: column; gap: 5px; flex-shrink: 0; }
@@ -142,13 +146,17 @@
     <button class="filter-btn" onclick="setFilter(this,'pending')">Por tocar</button>
     <button class="filter-btn" onclick="setFilter(this,'played')">Tocados</button>
   </div>
+  <div class="sort-bar">
+    <button class="sort-btn active" id="sort-time" onclick="setSort('time')">⏱ Cronológico</button>
+    <button class="sort-btn" id="sort-count" onclick="setSort('count')">🔥 Mais pedidos</button>
+  </div>
   <div class="dj-list" id="dj-list"></div>
   <button class="back-link" onclick="showView('guest')">← Vista pública</button>
 </div>
 
 <script>
   const DJ_PASSWORD = 'dj2025';
-  let djFilter = 'all', djInterval = null, allRequests = [], searchTimer = null, prevCount = 0;
+  let djFilter = 'all', djSort = 'time', djInterval = null, allRequests = [], searchTimer = null, prevCount = 0;
 
   function showView(v) {
     ['guest','login','dj'].forEach(n => document.getElementById('view-'+n).style.display = 'none');
@@ -230,7 +238,6 @@
   async function loadDJ() {
     const res = await fetch('/api/requests');
     allRequests = await res.json();
-    allRequests.reverse();
     const pending = allRequests.filter(r => !r.played).length;
     const isNew = allRequests.length > prevCount; prevCount = allRequests.length;
     document.getElementById('dj-sub').innerHTML = `Atualiza a cada 3 seg · ${pending} por tocar`+(isNew&&pending>0?' <span class="new-badge">Novo</span>':'');
@@ -244,12 +251,19 @@
     renderDJ();
   }
 
+  function setSort(s) {
+    djSort=s;
+    document.querySelectorAll('.sort-btn').forEach(b=>b.classList.remove('active'));
+    document.getElementById('sort-'+s).classList.add('active');
+    renderDJ();
+  }
+
   function renderDJ() {
     const filtered = allRequests.filter(r => djFilter==='all'?true:djFilter==='pending'?!r.played:r.played);
     const el = document.getElementById('dj-list');
     if (!filtered.length) { el.innerHTML=`<div class="empty-state"><div class="e">🎵</div><p>Nenhum pedido ainda</p></div>`; return; }
 
-    // Agrupar por track id
+    // Agrupar por track id + played
     const groups = [];
     filtered.forEach(r => {
       const existing = groups.find(g => g.track.id === r.track.id && g.played === r.played);
@@ -257,10 +271,18 @@
         existing.count++;
         existing.requesters.push(r.requester + (r.team ? ' · ' + r.team : ''));
         existing.ids.push(r.id);
+        if (r.id > existing.lastId) existing.lastId = r.id;
       } else {
-        groups.push({ track: r.track, played: r.played, count: 1, requesters: [r.requester + (r.team ? ' · ' + r.team : '')], ids: [r.id], time: r.time });
+        groups.push({ track: r.track, played: r.played, count: 1, requesters: [r.requester + (r.team ? ' · ' + r.team : '')], ids: [r.id], time: r.time, lastId: r.id });
       }
     });
+
+    // Ordenar
+    if (djSort === 'count') {
+      groups.sort((a, b) => b.count - a.count);
+    } else {
+      groups.sort((a, b) => b.lastId - a.lastId);
+    }
 
     el.innerHTML = groups.map(g => `
       <div class="req-card ${g.played?'played':''}">
@@ -268,8 +290,8 @@
         <div class="req-thumb">${g.track.image?`<img src="${g.track.image}" alt="">`:'🎵'}</div>
         <div class="req-info">
           <div class="req-name">
-            <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(g.track.name)}</span>
-            <button onclick="navigator.clipboard.writeText('${esc(g.track.name)} ${esc(g.track.artist)}');this.textContent='✓';setTimeout(()=>this.textContent='⎘',1500)" style="background:transparent;border:1px solid #333;border-radius:4px;color:#666;padding:2px 6px;cursor:pointer;font-size:10px;flex-shrink:0">⎘</button>
+            <span>${esc(g.track.name)}</span>
+            <button onclick="navigator.clipboard.writeText(${JSON.stringify(g.track.name + ' ' + g.track.artist)});this.textContent='✓';setTimeout(()=>this.textContent='⎘',1500)" style="background:transparent;border:1px solid #333;border-radius:4px;color:#666;padding:2px 6px;cursor:pointer;font-size:10px;flex-shrink:0">⎘</button>
           </div>
           <div class="req-artist">${esc(g.track.artist)}</div>
           <div class="req-meta">${g.requesters.map(r=>esc(r)).join(' · ')} · ${g.time}</div>
@@ -281,8 +303,6 @@
       </div>`).join('');
   }
 
-  async function markPlayed(id) { await fetch('/api/requests?id='+id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({played:true})}); loadDJ(); }
-  async function removeReq(id) { await fetch('/api/requests?id='+id,{method:'DELETE'}); loadDJ(); }
   async function markAllPlayed(ids) { await Promise.all(ids.map(id => fetch('/api/requests?id='+id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({played:true})}))); loadDJ(); }
   async function removeAll(ids) { await Promise.all(ids.map(id => fetch('/api/requests?id='+id,{method:'DELETE'}))); loadDJ(); }
   async function clearAll() { if(!confirm('Limpar todos os pedidos?'))return; await fetch('/api/requests?id=all',{method:'DELETE'}); loadDJ(); }
@@ -290,4 +310,3 @@
 </script>
 </body>
 </html>
-
