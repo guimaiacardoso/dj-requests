@@ -65,11 +65,9 @@
     .req-thumb { width: 46px; height: 46px; border-radius: 6px; flex-shrink: 0; background: var(--grey-mid); display: flex; align-items: center; justify-content: center; font-size: 18px; }
     .req-thumb img { width: 46px; height: 46px; border-radius: 6px; object-fit: cover; }
     .req-info { flex: 1; min-width: 0; }
-    .req-name { font-weight: 700; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .req-name a { color: inherit; text-decoration: none; border-bottom: 1px solid #444; transition: border-color .15s; }
-    .req-name a:hover { border-color: var(--spotify); color: var(--spotify); }
+    .req-name { font-weight: 700; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; gap: 8px; }
     .req-artist { font-size: 12px; color: var(--grey-muted); margin-top: 1px; }
-    .req-meta { font-size: 11px; color: #444; margin-top: 3px; }
+    .req-meta { font-size: 11px; color: #444; margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .req-actions { display: flex; flex-direction: column; gap: 5px; flex-shrink: 0; }
     .btn-played { background: var(--white); border: none; border-radius: 6px; color: var(--black); padding: 5px 10px; font-size: 11px; font-weight: 700; cursor: pointer; font-family: 'Inter', sans-serif; }
     .btn-played:hover { background: var(--gold); }
@@ -81,8 +79,8 @@
     .btn-login { width: 100%; background: var(--white); border: none; border-radius: 8px; color: var(--black); padding: 13px; font-size: 14px; font-weight: 700; cursor: pointer; margin-top: 8px; font-family: 'Inter', sans-serif; }
     .btn-login:hover { background: var(--gold); }
     .new-badge { display: inline-block; background: var(--gold); color: var(--black); font-size: 9px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; border-radius: 4px; padding: 2px 6px; margin-left: 6px; vertical-align: middle; animation: pop-in .3s ease both; }
-    .spotify-link { display: inline-flex; align-items: center; gap: 4px; font-size: 10px; color: var(--spotify); text-decoration: none; margin-top: 3px; opacity: .8; }
-    .spotify-link:hover { opacity: 1; }
+    .count-badge { font-family: 'Bebas Neue', sans-serif; font-size: 28px; color: var(--gold); min-width: 32px; text-align: center; flex-shrink: 0; }
+    .count-spacer { min-width: 32px; flex-shrink: 0; }
   </style>
 </head>
 <body>
@@ -250,25 +248,46 @@
     const filtered = allRequests.filter(r => djFilter==='all'?true:djFilter==='pending'?!r.played:r.played);
     const el = document.getElementById('dj-list');
     if (!filtered.length) { el.innerHTML=`<div class="empty-state"><div class="e">🎵</div><p>Nenhum pedido ainda</p></div>`; return; }
-    el.innerHTML = filtered.map(r => `
-      <div class="req-card ${r.played?'played':''}">
-        <div class="req-thumb">${r.track.image?`<img src="${r.track.image}" alt="">`:'🎵'}</div>
+
+    // Agrupar por track id
+    const groups = [];
+    filtered.forEach(r => {
+      const existing = groups.find(g => g.track.id === r.track.id && g.played === r.played);
+      if (existing) {
+        existing.count++;
+        existing.requesters.push(r.requester + (r.team ? ' · ' + r.team : ''));
+        existing.ids.push(r.id);
+      } else {
+        groups.push({ track: r.track, played: r.played, count: 1, requesters: [r.requester + (r.team ? ' · ' + r.team : '')], ids: [r.id], time: r.time });
+      }
+    });
+
+    el.innerHTML = groups.map(g => `
+      <div class="req-card ${g.played?'played':''}">
+        ${g.count > 1 ? `<div class="count-badge">${g.count}</div>` : '<div class="count-spacer"></div>'}
+        <div class="req-thumb">${g.track.image?`<img src="${g.track.image}" alt="">`:'🎵'}</div>
         <div class="req-info">
-          <div class="req-name">${r.track.spotifyUrl?`<a href="${r.track.spotifyUrl}" target="_blank">${esc(r.track.name)}</a>`:esc(r.track.name)}</div>
-          <div class="req-artist">${esc(r.track.artist)}</div>
-          <div class="req-meta">${esc(r.requester)}${r.team?' · '+esc(r.team):''} · ${r.time}</div>
+          <div class="req-name">
+            <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(g.track.name)}</span>
+            <button onclick="navigator.clipboard.writeText('${esc(g.track.name)} ${esc(g.track.artist)}');this.textContent='✓';setTimeout(()=>this.textContent='⎘',1500)" style="background:transparent;border:1px solid #333;border-radius:4px;color:#666;padding:2px 6px;cursor:pointer;font-size:10px;flex-shrink:0">⎘</button>
+          </div>
+          <div class="req-artist">${esc(g.track.artist)}</div>
+          <div class="req-meta">${g.requesters.map(r=>esc(r)).join(' · ')} · ${g.time}</div>
         </div>
         <div class="req-actions">
-          ${!r.played?`<button class="btn-played" onclick="markPlayed(${r.id})">✓ Tocou</button>`:''}
-          <button class="btn-remove" onclick="removeReq(${r.id})">✕</button>
+          ${!g.played?`<button class="btn-played" onclick="markAllPlayed(${JSON.stringify(g.ids)})">✓ Tocou</button>`:''}
+          <button class="btn-remove" onclick="removeAll(${JSON.stringify(g.ids)})">✕</button>
         </div>
       </div>`).join('');
   }
 
   async function markPlayed(id) { await fetch('/api/requests?id='+id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({played:true})}); loadDJ(); }
   async function removeReq(id) { await fetch('/api/requests?id='+id,{method:'DELETE'}); loadDJ(); }
+  async function markAllPlayed(ids) { await Promise.all(ids.map(id => fetch('/api/requests?id='+id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({played:true})}))); loadDJ(); }
+  async function removeAll(ids) { await Promise.all(ids.map(id => fetch('/api/requests?id='+id,{method:'DELETE'}))); loadDJ(); }
   async function clearAll() { if(!confirm('Limpar todos os pedidos?'))return; await fetch('/api/requests?id=all',{method:'DELETE'}); loadDJ(); }
   function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 </script>
 </body>
 </html>
+
